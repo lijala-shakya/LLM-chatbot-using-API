@@ -15,31 +15,6 @@ A modular async Python chatbot supporting Gemini and Groq with conversation memo
 - Pydantic validation on all requests and responses
 - Graceful error handling
 
-
-## Project Structure
-
-
-project/
-├── main.py                  # Entry point and chat loop
-├── .env                     # Your API keys (never commit this)
-├── .env.example             # Template for API keys
-├── .gitignore
-├── pyproject.toml           # Dependencies managed by UV
-├── uv.lock                  # Locked dependency versions
-├── logs/
-│   └── chat.log             # Auto-created at runtime
-└── src/
-    └── llm/
-        ├── schema.py        # Pydantic models
-        ├── base.py          # BaseProvider and retry logic
-        ├── client.py        # AIClient
-        ├── logging_config.py
-        └── provider/
-            ├── __init__.py
-            ├── gemini.py
-            └── groq.py
-
-
 ## Requirements
 
 - Python 3.12+
@@ -95,7 +70,7 @@ uv run python main.py
 When you start the app you will be asked to select a model:
 
 ```
-=== Select a model ===
+Select a model
   1. Gemini 2.5 Flash
   2. Groq Llama 3.3 70b
 
@@ -108,20 +83,17 @@ Then just start chatting:
 Chatting with gemini / gemini-2.5-flash
 Type 'exit' to quit
 
-
+```
 ## Commands
 
 | Command | Description |
-|---|---|
 | `/switch` | Switch to a different model |
 | `exit` / `quit` / `bye` | End the session |
 
----
+
 
 ## Environment Variables
 
-| Variable | Required | Description |
-|---|---|---|
 | `GEMINI_API_KEY` | Yes (if using Gemini) | Google AI Studio API key |
 | `GROQ_API_KEY` | Yes (if using Groq) | Groq Console API key |
 
@@ -177,14 +149,15 @@ GEMINI_API_KEY=your_gemini_key_here
 logs/
 __pycache__/
 *.pyc
+
 ```
 
-***Setup Instructions***
+## Setup Instructions
 
 &#x20;*Clone the Repository*
 
 ```bash
 
-*git clone https:https:**//github.com/lijala-shakya/LLM-chatbot-using-API***
+git clone https:https://github.com/lijala-shakya/LLM-chatbot-using-API
 
-**cd llm-chatbot**
+cd llm-chatbot
