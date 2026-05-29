@@ -33,8 +33,7 @@ async def main():
     ) as client:
 
         provider, model = select_model()
-
-        thinking = False  # ADD 1: thinking off by default
+        thinking = False
 
         history = [
             Message(
@@ -61,7 +60,7 @@ async def main():
                 print(f"Switched to {provider} / {model}\n")
                 continue
 
-            if user_input.lower() == "/think":  
+            if user_input.lower() == "/think":
                 thinking = not thinking
                 status = "ON" if thinking else "OFF"
                 print(f"Thinking mode: {status}\n")
@@ -70,23 +69,21 @@ async def main():
             history.append(Message(role="user", content=user_input))
 
             try:
+                print("\nAI: ", end="", flush=True)  # print AI: before streaming starts
+
                 response = await client.chat(
                     provider=provider,
                     model=model,
                     messages=history,
                     max_tokens=4096,
-                    thinking=thinking,  # ADD 3: pass thinking to client
+                    thinking=thinking,
                 )
-                if thinking and response.usage:
-                    print(f"[Thought tokens used: {response.usage.prompt_tokens} prompt / {response.usage.completion_tokens} completion]\n")
 
-                # print(f"AI: {response.content}\n")
-                print(f"\nAI: {response.content}\n")
-
+                print("\n")       
                 history.append(Message(role="assistant", content=response.content))
 
             except Exception as e:
-                print(f"Error: {e}\n")
+                print(f"\nError: {e}\n")
                 history.pop()
 
 

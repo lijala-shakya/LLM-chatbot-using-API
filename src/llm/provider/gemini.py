@@ -1,5 +1,5 @@
-
 import httpx
+import json
 from src.llm.base import BaseProvider, make_retry_decorator
 from src.llm.schema import ChatRequest, ChatResponse, UsageStats, Message
 
@@ -42,20 +42,53 @@ class GeminiProvider(BaseProvider):
                 "generationConfig": {
                     "maxOutputTokens": request.max_tokens,
                     "temperature": request.temperature,
-                    "thinkingConfig": {
-                        "thinkingBudget": 1024
-                    }
                 },
             }
             if system_text:
                 payload["systemInstruction"] = {"parts": [{"text": system_text}]}
 
-            url = f"{self.BASE_URL}/{request.model}:generateContent?key={self.api_key}"
+            # CHANGED: streaming endpoint instead of generateContent
+            url = f"{self.BASE_URL}/{request.model}:streamGenerateContent?key={self.api_key}&alt=sse"
 
             self._log.debug("Gemini request | model=%s messages=%d", request.model, len(request.messages))
 
+            full_text = ""
+            usage_meta = {}
+
             try:
-                response = await client.post(url, json=payload)
+                # CHANGED: client.stream() instead of client.post()
+                async with client.stream("POST", url, json=payload) as response:
+                    print(f"DEBUG status: {response.status_code}")
+                    if response.status_code >= 400:
+                        await response.aread()
+                        self._raise_for_status("gemini", response)
+
+                    async for line in response.aiter_lines():
+                        if not line.startswith("data:"):
+                            continue
+                        raw = line[len("data:"):].strip()
+                        if not raw:
+                            continue
+                        try:
+                            chunk = json.loads(raw)
+                        except json.JSONDecodeError:
+                            continue
+                        if "error" in chunk:
+                            error = chunk["error"]
+                            raise Exception(f"Gemini error {error.get('code')}: {error.get('message')}")
+
+                        candidates = chunk.get("candidates", [])
+                        if candidates:
+                            parts = candidates[0].get("content", {}).get("parts", [])
+                            for part in parts:
+                                text = part.get("text", "")
+                                if text:
+                                    print(text, end="", flush=True)
+                                    full_text += text
+
+                        if "usageMetadata" in chunk:
+                            usage_meta = chunk["usageMetadata"]
+
             except httpx.TimeoutException:
                 self._log.warning("Gemini request timed out, will retry...")
                 raise
@@ -63,31 +96,10 @@ class GeminiProvider(BaseProvider):
                 self._log.warning("Gemini network error: %s, will retry...", e)
                 raise
 
-            self._raise_for_status("gemini", response)
-
-            data = response.json()
-            candidate = data["candidates"][0]
-            content_text = candidate["content"]["parts"]
-            # content_text = candidate["content"]["parts"][0]["text"]
-            thought_text = ""
-            answer_text = ""
-
-            for part in candidate["content"]["parts"]:
-                if part.get("thought", False):
-                    thought_text = part.get("text", "")
-                else:
-                    answer_text = part.get("text", "")
-
-            if thought_text and request.extra.get("thinking", False):
-                content_text = f"[Thinking]\n{thought_text}\n\n[Answer]\n{answer_text}"
-            else:
-                content_text = answer_text
-            usage_meta = data.get("usageMetadata", {})
-
             self._log.info("Gemini response | model=%s total_tokens=%s", request.model, usage_meta.get("totalTokenCount", "?"))
 
             return ChatResponse(
-                content=content_text,
+                content=full_text,
                 model=request.model,
                 provider="gemini",
                 usage=UsageStats(
@@ -95,7 +107,7 @@ class GeminiProvider(BaseProvider):
                     completion_tokens=usage_meta.get("candidatesTokenCount", 0),
                     total_tokens=usage_meta.get("totalTokenCount", 0),
                 ) if usage_meta else None,
-                raw=data,
+                raw={},
             )
 
         return await _call()
